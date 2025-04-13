@@ -41,7 +41,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ```
 # リポジトリのクローン
-git clone https://github.com/YOUR-REPOSITORY/apm-mcp-server.git
+git clone https://github.com/HappymanOkajima/apm-mcp-server.git
 cd apm-mcp-server
 
 # uvを使用してサーバーを実行
