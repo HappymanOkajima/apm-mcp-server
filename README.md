@@ -22,7 +22,7 @@
 
 **Windows:**
 ```
-powershell -c "irm https://windows.uv.dev | iex"
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
 **macOS:**
