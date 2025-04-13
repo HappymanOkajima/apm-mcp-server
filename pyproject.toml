@@ -1,0 +1,31 @@
+[project]
+name = "apm-mcp-server"
+version = "0.1.0"
+description = "Agile Practis Map MCP SERVER by Agile Studio"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "langchain",
+    "langchain-openai",
+    "langchain-community",
+    "langchain-chroma",
+    "lark",
+    "python-dotenv",
+    "httpx>=0.28.1",
+    "mcp[cli]>=1.6.0",
+    "beautifulsoup4",
+    "playwright",
+    "unstructured",
+    "chromadb"
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["apm_mcp_server", "tools"]
+
+[project.scripts]
+apm-mcp-server = "apm_mcp_server.main:main"
+populate-db = "tools.populate_db:main"
