@@ -27,9 +27,6 @@ env/
 venv/
 ENV/
 
-# Database
-data/chroma_db/
-
 # IDE
 .vscode/
 .idea/
