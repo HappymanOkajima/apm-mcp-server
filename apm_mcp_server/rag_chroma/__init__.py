@@ -1,3 +1,3 @@
 """
-RAG Chroma module for Agile Practis Map
+RAG Chroma module for Agile Practice Map
 """

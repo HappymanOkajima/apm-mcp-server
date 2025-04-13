@@ -1,3 +1,3 @@
 """
-Utility tools for Agile Practis Map
+Utility tools for Agile Practice Map
 """

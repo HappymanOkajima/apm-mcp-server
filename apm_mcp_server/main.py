@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
 # Initialize FastMCP server
-mcp = FastMCP("agile_practis_map")
+mcp = FastMCP("agile_practice_map")
 
 load_dotenv()
 
@@ -21,7 +21,7 @@ def initialize_rag():
 @mcp.tool()
 def apm_query(question):
     """
-    Agile Practis Map（アジャイルプラクティスマップ）に関する質問に答える関数。
+    Agile Practice Map（アジャイルプラクティスマップ）に関する質問に答える関数。
 
     引数:
     question -- ユーザーからの質問
@@ -47,7 +47,7 @@ def main():
     
     # RAGシステムを初期化
     initialize_rag()
-    # print("Agile Practis Map MCP SERVER starting up...")
+    # print("Agile Practice Map MCP SERVER starting up...")
   
     mcp.run(transport='stdio')
 
