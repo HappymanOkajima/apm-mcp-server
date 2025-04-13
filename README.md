@@ -18,7 +18,7 @@
 
 ### uvのインストール
 
-このプロジェクトを`uv`で使用する前に、`uv`パッケージマネージャーをインストールする必要があります。
+まだインストールされていない場合、`uv`パッケージマネージャーをインストールする必要があります。
 
 **Windows:**
 ```
@@ -35,22 +35,14 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-### uvの使用
-
-`uv`でサーバーを直接実行できます。
+### リポジトリのクローン
 
 ```
-# リポジトリのクローン
+# リポジトリをクローンします。
 git clone https://github.com/HappymanOkajima/apm-mcp-server.git
-cd apm-mcp-server
-
-# uvを使用してサーバーを実行
-uv run -m apm_mcp_server
 ```
 
-## 設定
-
-### OpenAIのAPIキーが必要です
+### OpenAIのAPIキーの設定
 
 apm-mcp-server 配下に.envファイルを作成してください。
 
@@ -58,6 +50,8 @@ apm-mcp-server 配下に.envファイルを作成してください。
 ```
 OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxx
 ```
+
+## 設定
 
 ### Claude Desktopでの使用方法
 
