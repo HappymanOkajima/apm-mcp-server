@@ -7,14 +7,14 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
 from langchain.docstore.document import Document
-from typing import List, Optional
+from typing import List, Optional, Dict
 import hashlib # ID生成用にインポート
 from dotenv import load_dotenv
 
 load_dotenv()
 
 # --- 定数定義 ---
-DEFAULT_DB_PATH = "../data/chroma_db"
+DEFAULT_DB_PATH = "../data/chroma_db"  # chroma.sqlite3 ファイルのみを配布
 DEFAULT_CHUNK_SIZE = 500
 DEFAULT_CHUNK_OVERLAP = 50
 DEFAULT_SPLIT_METHOD = "recursive" # 'recursive' or 'paragraph'
@@ -22,24 +22,37 @@ DEFAULT_SPLIT_METHOD = "recursive" # 'recursive' or 'paragraph'
 # 日本語文字クラス（クリーニング用）
 JP_CHARS = r'\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF々〇〉》」』】〕〟＇｀．。，、？！：；＝ LINETAB'
 
-def load_urls_from_file(file_path: str) -> List[str]:
-    """指定されたファイルからURLリストを読み込む (1行1URL形式、#で始まる行は無視)"""
-    urls = []
+def load_urls_from_file(file_path: str) -> List[Dict[str, str]]:
+    """
+    指定されたファイルからURLリストとプラクティス名を読み込む
+    フォーマット例: practice_name,http://example.com または http://example.com
+    行の先頭が#の場合はコメントとして無視
+    """
+    url_items = []
     print(f"URLリストファイル '{file_path}' を読み込み中...")
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             for line in f:
-                url = line.strip()
-                if url and not url.startswith('#'): # 空行とコメント行(#)を無視
-                    urls.append(url)
-        print(f"  {len(urls)} 個の有効なURLを読み込みました。")
+                line = line.strip()
+                if not line or line.startswith('#'):  # 空行とコメント行(#)を無視
+                    continue
+                
+                parts = line.split(',', 1)  # 最初のカンマでのみ分割
+                if len(parts) == 2:
+                    practice_name, url = parts[0].strip(), parts[1].strip()
+                    url_items.append({"url": url, "practice_name": practice_name})
+                else:
+                    # プラクティス名が未指定の場合
+                    url_items.append({"url": line, "practice_name": "unknown"})
+                    
+        print(f"  {len(url_items)} 個の有効なURLを読み込みました。")
     except FileNotFoundError:
         print(f"エラー: URLリストファイル '{file_path}' が見つかりません。")
     except Exception as e:
         print(f"エラー: URLリストファイル '{file_path}' の読み込み中にエラーが発生しました: {e}")
-    return urls
+    return url_items
 
-def load_documents(input_dir: Optional[str], url_file: Optional[str]) -> List[Document]:
+def load_documents(input_dir: Optional[str], url_file: Optional[str], practice_name: Optional[str] = None) -> List[Document]:
     """テキストファイルとWebページからドキュメントを読み込む (WebはPlaywrightを使用)"""
     all_docs: List[Document] = []
 
@@ -61,6 +74,8 @@ def load_documents(input_dir: Optional[str], url_file: Optional[str]) -> List[Do
                         if not hasattr(doc, 'metadata'): doc.metadata = {}
                         if 'source' not in doc.metadata or not doc.metadata['source']:
                              doc.metadata['source'] = file_path
+                        # プラクティス名を設定 (引数で指定されていればそれを、なければディレクトリ名を使用)
+                        doc.metadata['practice_name'] = practice_name or os.path.basename(os.path.dirname(file_path))
                     all_docs.extend(loaded_docs)
                     loaded_count += len(loaded_docs)
                 except Exception as e:
@@ -73,33 +88,42 @@ def load_documents(input_dir: Optional[str], url_file: Optional[str]) -> List[Do
              print(f"警告: 指定されたURLリストファイル '{url_file}' が存在しません。スキップします。")
         else:
             print(f"URLリストファイル '{url_file}' を処理中...")
-            urls = load_urls_from_file(url_file)
-            if urls:
-                print(f"  {len(urls)} 個のURLから Playwright を使用してWebページを読み込み中 (JavaScript実行)...")
+            url_items = load_urls_from_file(url_file)
+            
+            if url_items:
+                print(f"  {len(url_items)} 個のURLから Playwright を使用してWebページを読み込み中 (JavaScript実行)...")
+                
+                # URLとプラクティス名の対応マップを作成
+                url_to_practice = {item["url"]: item["practice_name"] for item in url_items}
+                urls = [item["url"] for item in url_items]
+                
                 try:
                     # PlaywrightURLLoader を使用
-                    # remove_selectors で不要なHTML要素をCSSセレクタで指定して読み込み前に削除可能
-                    # 例: ヘッダー、フッター、ナビゲーション、スクリプト、スタイルシートなど
                     web_loader = PlaywrightURLLoader(
                         urls=urls,
-                        remove_selectors=["header", "footer", "nav", "aside", "script", "style", ".sidebar", "#sidebar"], # 不要そうな要素を指定
-                        continue_on_failure=True, # エラーが発生したURLはスキップして続行
-                        # headless=True # デフォルトはTrue (バックグラウンドで実行)
+                        remove_selectors=["header", "footer", "nav", "aside", "script", "style", ".sidebar", "#sidebar"],
+                        continue_on_failure=True,
                     )
-                    # load() を実行すると内部で Playwright がブラウザを起動し、
-                    # ページを読み込み、JavaScriptを実行し、指定された要素を削除した後、
-                    # body内のテキストコンテンツを抽出します。
+                    
                     web_docs = web_loader.load()
                     print(f"  Webページからの読み込み完了 (Playwright)。{len(web_docs)} ドキュメント取得。")
 
                     # メタデータの確認と設定
                     for doc in web_docs:
-                         if not hasattr(doc, 'metadata'): doc.metadata = {}
-                         # PlaywrightURLLoaderは通常 'source' (URL) と 'title' をメタデータに設定する
-                         if 'source' not in doc.metadata or not doc.metadata['source']:
-                             # 万が一 source が設定されなかった場合のフォールバック
-                             doc.metadata['source'] = "Unknown Web Source (Playwright)"
-                         print(f"    Loaded: {doc.metadata.get('source')} (Title: {doc.metadata.get('title', 'N/A')})")
+                        if not hasattr(doc, 'metadata'): doc.metadata = {}
+                        source_url = doc.metadata.get('source')
+                        
+                        # プラクティス名を設定
+                        if source_url and source_url in url_to_practice:
+                            doc.metadata['practice_name'] = url_to_practice[source_url]
+                        else:
+                            doc.metadata['practice_name'] = practice_name or "unknown"
+                            
+                        # sourceがない場合のフォールバック
+                        if 'source' not in doc.metadata or not doc.metadata['source']:
+                            doc.metadata['source'] = "Unknown Web Source (Playwright)"
+                            
+                        print(f"    Loaded: {doc.metadata.get('source')} (Title: {doc.metadata.get('title', 'N/A')}, Practice: {doc.metadata.get('practice_name', 'N/A')})")
 
                     all_docs.extend(web_docs)
                 except ImportError as ie:
@@ -110,7 +134,6 @@ def load_documents(input_dir: Optional[str], url_file: Optional[str]) -> List[Do
                     print("を実行してください。\n")
                 except Exception as e:
                     print(f"  Playwrightを使用したWebページの読み込み中に予期せぬエラーが発生しました: {e}")
-                    # Playwrightのタイムアウトエラーなどもここで捕捉される可能性あり
             else:
                 print("  URLリストファイルから有効なURLが読み込めませんでした。")
 
@@ -171,7 +194,7 @@ def split_by_paragraph(documents: List[Document]) -> List[Document]:
     print(f"  合計 {len(split_docs)} 個の段落チャンクに分割しました。")
     return split_docs
 
-def main(input_dir, url_file, db_path, split_method, chunk_size, chunk_overlap):
+def main(input_dir, url_file, db_path, split_method, chunk_size, chunk_overlap, practice_name=None):
     """メイン処理"""
     import re # ここでimport
 
@@ -186,7 +209,7 @@ def main(input_dir, url_file, db_path, split_method, chunk_size, chunk_overlap):
         exit()
 
     # --- 2. ドキュメントの読み込み ---
-    documents = load_documents(input_dir, url_file)
+    documents = load_documents(input_dir, url_file, practice_name)
     if not documents:
         print("処理対象のドキュメントが見つかりませんでした。プログラムを終了します。")
         return
@@ -235,15 +258,17 @@ def main(input_dir, url_file, db_path, split_method, chunk_size, chunk_overlap):
             embedding_function=embeddings
         )
         print(f"  {len(splits)} 個のチャンクをベクトル化してDBに追加しています...")
-        # IDを生成 (ソースURL/ファイルパス + チャンク内容のハッシュ)
+        # IDを生成 (プラクティス名 + ソースURL/ファイルパス + チャンク内容のハッシュ)
         ids = []
         for i, doc in enumerate(splits):
             source_str = doc.metadata.get('source', f'unknown_{i}')
-            # ファイルパスやURLに使えない文字を置換（オプション）
+            practice_str = doc.metadata.get('practice_name', 'unknown')
+            # ファイルパスやURLに使えない文字を置換
             safe_source_str = re.sub(r'[\\/*?:"<>|]', '_', source_str)
+            safe_practice_str = re.sub(r'[\\/*?:"<>|]', '_', practice_str)
             content_hash = hashlib.md5(doc.page_content.encode()).hexdigest()[:8]
-            # IDが長すぎると問題になる場合があるので注意
-            ids.append(f"{safe_source_str}_{i}_{content_hash}")
+            # IDにプラクティス名を含める
+            ids.append(f"{safe_practice_str}_{safe_source_str}_{i}_{content_hash}")
 
         vectorstore.add_documents(splits, ids=ids)
         print("  DBへのデータの追加/更新が完了しました。")
@@ -257,6 +282,7 @@ def main(input_dir, url_file, db_path, split_method, chunk_size, chunk_overlap):
     print("処理が正常に完了しました。")
     if input_dir: print(f"  テキスト入力ディレクトリ: {input_dir}")
     if url_file: print(f"  URLリストファイル: {url_file}")
+    if practice_name: print(f"  指定されたプラクティス名: {practice_name}")
     print(f"  読み込んだ初期ドキュメントオブジェクト数: {len(documents)}")
     print(f"  クリーニング後の有効ドキュメント数: {len(cleaned_documents)}")
     print(f"  生成/DB追加されたチャンク数: {len(splits)}")
@@ -283,6 +309,7 @@ if __name__ == "__main__":
     parser.add_argument("--split_method", type=str, default=DEFAULT_SPLIT_METHOD, choices=['recursive', 'paragraph'], help="テキストの分割方法")
     parser.add_argument("--chunk_size", type=int, default=DEFAULT_CHUNK_SIZE, help="テキスト分割のチャンクサイズ (recursiveモード時)")
     parser.add_argument("--chunk_overlap", type=int, default=DEFAULT_CHUNK_OVERLAP, help="テキスト分割のチャンクオーバーラップ (recursiveモード時)")
+    parser.add_argument("--practice_name", type=str, default=None, help="プラクティス名 (オプション)")
 
     args = parser.parse_args()
 
@@ -305,4 +332,4 @@ if __name__ == "__main__":
         print("\n情報: 'paragraph' モードが選択されました。")
 
     # main 関数の呼び出し
-    main(args.input_dir, args.url_file, args.db_path, args.split_method, args.chunk_size, args.chunk_overlap)
+    main(args.input_dir, args.url_file, args.db_path, args.split_method, args.chunk_size, args.chunk_overlap, args.practice_name)

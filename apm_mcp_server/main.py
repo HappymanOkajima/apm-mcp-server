@@ -1,4 +1,4 @@
-from .rag_chroma.core import initialize_rag_system, ask_question
+from apm_mcp_server.rag_chroma.core import initialize_rag_system, ask_question, get_practice_names
 import os
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
@@ -43,8 +43,13 @@ def apm_query(question):
     
     return answer
 
-def main():
+@mcp.resource("practices://list")
+def list_practices():
+    practices = get_practice_names()
+    return practices
+
     
+def main():
     # RAGシステムを初期化
     initialize_rag()
     # print("Agile Practice Map MCP SERVER starting up...")

@@ -59,10 +59,10 @@ def initialize_rag_system(db_path: str = DEFAULT_DB_PATH,
         )
         db_count = vectorstore._collection.count()
         if db_count == 0:
-             pass
+            pass
     except Exception as e:
         return None
-
+        
     # 4. リトリーバー作成
     retriever = vectorstore.as_retriever(search_kwargs={"k": retriever_k})
 
@@ -106,6 +106,41 @@ def initialize_rag_system(db_path: str = DEFAULT_DB_PATH,
     }
 
 # --- 質問応答関数 ---
+
+def get_practice_names() -> List[str]:
+    """
+    Retrieve all unique practice names from ChromaDB collection metadata.
+    
+    Returns:
+        A sorted list of unique practice names or None if an error occurs.
+    """
+    try:
+        # 埋め込みモデルの初期化
+        embeddings = OpenAIEmbeddings()
+        
+        # ChromaDBに接続
+        db = Chroma(
+            persist_directory=DEFAULT_DB_PATH,
+            embedding_function=embeddings
+        )
+        
+        # メタデータを取得（全件）
+        results = db.get(include=["metadatas"])
+        
+        # practice_nameの一覧を抽出して重複排除
+        practice_names = set()
+        for metadata in results['metadatas']:
+            if metadata and 'practice_name' in metadata:
+                practice_names.add(metadata['practice_name'])
+        
+        # ソートして返す
+        return sorted(list(practice_names))
+            
+    except Exception as e:
+        print(f"エラー: ChromaDBからの取得中に問題が発生しました: {e}")
+        return None
+
+
 def ask_question(rag_components: Dict[str, Any],
                  question: str,
                  debug: bool = False
@@ -136,18 +171,26 @@ def ask_question(rag_components: Dict[str, Any],
 
     if debug:
         try:
+            print(f"デバッグモード: 質問 = '{question}'")
+            
             # 1. ドキュメント検索
+            print("リトリーバーを使用してドキュメントを検索中...")
             retrieved_docs = retriever.invoke(question)
+            print(f"検索結果: {len(retrieved_docs)}件のドキュメントが見つかりました")
             debug_info["retrieved_docs"] = retrieved_docs
+            
             if retrieved_docs:
                  for i, doc in enumerate(retrieved_docs):
                     source = doc.metadata.get('source', '不明')
+                    print(f"ドキュメント{i+1}: ソース = {source}")
+                    print(f"ドキュメント{i+1}の内容（最初の100文字）: {doc.page_content[:100]}...")
             else:
-                pass
+                print("警告: 検索結果が空です。関連するドキュメントが見つかりませんでした。")
 
             # 2. コンテキスト整形
             context_text = format_docs(retrieved_docs)
             debug_info["context_text"] = context_text
+            print(f"コンテキストサイズ: {len(context_text)} 文字")
 
             # 3. プロンプト入力データ
             prompt_input_data = {"context": context_text, "question": question}
@@ -159,6 +202,7 @@ def ask_question(rag_components: Dict[str, Any],
             debug_info["final_prompt_string"] = final_prompt_string
 
         except Exception as e:
+            print(f"デバッグ中にエラーが発生しました: {str(e)}")
             debug_info["error"] = str(e)
         finally:
              pass
@@ -175,6 +219,8 @@ def ask_question(rag_components: Dict[str, Any],
 if __name__ == "__main__":
     # RAGシステムの初期化
     rag_components = initialize_rag_system()
+    
+    print(get_practice_names())
 
     if rag_components:
         while True:
@@ -188,6 +234,7 @@ if __name__ == "__main__":
                 # 質問応答関数を呼び出す (デバッグモードはTrueにする)
                 answer, debug_data = ask_question(rag_components, user_question, debug=True)
                 print(answer)  # 回答を表示
+                print(debug_data)
 
             except Exception as e:
                 pass
