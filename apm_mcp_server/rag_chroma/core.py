@@ -215,14 +215,62 @@ def ask_question(rag_components: Dict[str, Any],
         return f"エラーが発生しました: {e}", (debug_info if debug else None)
 
 
+# RAGシステムを管理するクラス
+class RAGManager:
+    _instance = None
+    
+    @classmethod
+    def get_instance(cls):
+        """シングルトンインスタンスを取得"""
+        if cls._instance is None:
+            cls._instance = RAGManager()
+        return cls._instance
+    
+    def __init__(self):
+        """RAGコンポーネントを初期化"""
+        self.components = None
+        self.initialized = False
+    
+    def initialize(self):
+        """RAGシステムを初期化"""
+        if not self.initialized:
+            self.components = initialize_rag_system()
+            self.initialized = self.components is not None
+        return self.components
+    
+    def is_initialized(self):
+        """初期化状態を確認"""
+        return self.initialized and self.components is not None
+    
+    def get_components(self):
+        """RAGコンポーネントを取得"""
+        if not self.is_initialized():
+            return self.initialize()
+        return self.components
+    
+    def query(self, question, debug=False):
+        """質問に回答"""
+        if not self.is_initialized():
+            self.initialize()
+            if not self.is_initialized():
+                return "エラー: RAGシステムの初期化に失敗しました。", None
+        
+        return ask_question(self.components, question, debug=debug)
+    
+    def get_practices(self):
+        """プラクティス名一覧を取得"""
+        return get_practice_names()
+
+
 # --- メイン実行部分 ---
 if __name__ == "__main__":
     # RAGシステムの初期化
-    rag_components = initialize_rag_system()
+    rag_manager = RAGManager.get_instance()
+    rag_manager.initialize()
     
-    print(get_practice_names())
+    print(rag_manager.get_practices())
 
-    if rag_components:
+    if rag_manager.is_initialized():
         while True:
             try:
                 user_question = input("\n質問を入力してください: ")
@@ -232,7 +280,7 @@ if __name__ == "__main__":
                     continue
 
                 # 質問応答関数を呼び出す (デバッグモードはTrueにする)
-                answer, debug_data = ask_question(rag_components, user_question, debug=True)
+                answer, debug_data = rag_manager.query(user_question, debug=True)
                 print(answer)  # 回答を表示
                 print(debug_data)
 

@@ -1,4 +1,4 @@
-from apm_mcp_server.rag_chroma.core import initialize_rag_system, ask_question, get_practice_names
+from apm_mcp_server.rag_chroma.core import RAGManager
 import os
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
@@ -8,18 +8,8 @@ mcp = FastMCP("agile_practice_map")
 
 load_dotenv()
 
-# グローバル変数としてRAGコンポーネントを保持
-rag_components = None
-
-def initialize_rag():
-    """RAGシステムを初期化する関数"""
-    global rag_components
-    if rag_components is None:
-        rag_components = initialize_rag_system()
-    return rag_components
-
 @mcp.tool()
-def apm_query(question):
+def query_apm(question):
     """
     Agile Practice Map（アジャイルプラクティスマップ）に関する質問に答える関数。
 
@@ -28,31 +18,25 @@ def apm_query(question):
     戻り値:
     質問に対する回答の文字列
     """
-    # print(f"質問を処理中: {question}")
-    
-    # RAGシステムの初期化確認
-    global rag_components
-    if rag_components is None:
-        rag_components = initialize_rag()
-        if not rag_components:
-            return "エラー: RAGシステムの初期化に失敗しました。"
-    
-    # 質問処理と回答生成
-    answer, _ = ask_question(rag_components, question, debug=False)
-    # print(f"回答を生成しました: {answer[:100]}..." if len(answer) > 100 else f"回答を生成しました: {answer}")
-    
+    # RAGマネージャーから回答を取得
+    answer, _ = RAGManager.get_instance().query(question)
     return answer
 
-@mcp.resource("practices://list")
-def list_practices():
-    practices = get_practice_names()
+@mcp.tool()
+def list_apm_practices():
+    """
+    Agile Practice Map（アジャイルプラクティスマップ）のプラクティス一覧を取得する関数。
+    
+    戻り値:
+    プラクティス名の一覧（リスト）
+    """
+    practices = RAGManager.get_instance().get_practices()
     return practices
 
-    
 def main():
     # RAGシステムを初期化
-    initialize_rag()
-    # print("Agile Practice Map MCP SERVER starting up...")
+    if not RAGManager.get_instance().initialize():
+        print("警告: RAGシステムの初期化に失敗しました。")
   
     mcp.run(transport='stdio')
 
