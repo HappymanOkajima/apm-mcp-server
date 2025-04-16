@@ -33,6 +33,19 @@ def list_apm_practices():
     practices = RAGManager.get_instance().get_practices()
     return practices
 
+@mcp.resource("resource://{practice_name}/url")
+def apm_practice_url(practice_name) -> str:
+    """
+    指定したプラクティス名のURLを返すリソース。
+
+    引数:
+    practice_name -- プラクティス名（例: "daily-scrum"）
+
+    戻り値:
+    { "practice_name": ..., "url": ... }
+    """
+    return RAGManager.get_instance().get_practice_url(practice_name)
+
 def main():
     # RAGシステムを初期化
     if not RAGManager.get_instance().initialize():

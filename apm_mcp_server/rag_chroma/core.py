@@ -107,6 +107,35 @@ def initialize_rag_system(db_path: str = DEFAULT_DB_PATH,
 
 # --- 質問応答関数 ---
 
+def get_practice_url(practice_name: str) -> dict:
+    """
+    指定したpractice_nameに該当するChromaDBのドキュメントのsource(URL)を返す。
+
+    Args:
+        practice_name: プラクティス名
+
+    Returns:
+        { "practice_name": ..., "url": ... } のdict。該当なしの場合はurl=None。
+    """
+    try:
+        embeddings = OpenAIEmbeddings()
+        db = Chroma(
+            persist_directory=DEFAULT_DB_PATH,
+            embedding_function=embeddings
+        )
+        # 全ドキュメント取得
+        results = db.get(include=["metadatas"])
+        for metadata in results['metadatas']:
+            if metadata and metadata.get('practice_name') == practice_name:
+                url = metadata.get('source')
+                return {"practice_name": practice_name, "url": url}
+        # 見つからなかった場合
+        return {"practice_name": practice_name, "url": None}
+    except Exception as e:
+        print(f"エラー: get_practice_url中に問題が発生しました: {e}")
+        return {"practice_name": practice_name, "url": None}
+
+
 def get_practice_names() -> List[str]:
     """
     Retrieve all unique practice names from ChromaDB collection metadata.
@@ -260,6 +289,10 @@ class RAGManager:
     def get_practices(self):
         """プラクティス名一覧を取得"""
         return get_practice_names()
+
+    def get_practice_url(self, practice_name: str):
+        """指定したプラクティス名のURLを取得"""
+        return get_practice_url(practice_name)
 
 
 # --- メイン実行部分 ---
