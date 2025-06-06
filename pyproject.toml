@@ -29,3 +29,6 @@ packages = ["apm_mcp_server", "tools"]
 [project.scripts]
 apm-mcp-server = "apm_mcp_server.main:main"
 populate-db = "tools.populate_db:main"
+
+[project.optional-dependencies]
+dev = ["pytest"]
